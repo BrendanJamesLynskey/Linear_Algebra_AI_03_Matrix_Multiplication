@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Linear Algebra for AI 03 &mdash; Matrix Multiplication Deep-Dive</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js" onload="renderMathInElement(document.body,{delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}]})"></script>
+    <style>
+        :root { --bg-primary: #0a0a0a; --bg-card: #0d1117; --bg-code: #161b22; --text-primary: #e6edf3; --text-secondary: #8b949e; --accent: #a78bfa; --accent-dim: #a78bfa44; --accent-glow: #a78bfa33; --accent-2: #f472b6; --accent-3: #fbbf24; --accent-4: #34d399; --border: #21262d; --font-display: 'Space Grotesk', sans-serif; --font-mono: 'JetBrains Mono', 'Fira Code', monospace; --font-body: 'Inter', sans-serif; --max-width: 900px; }
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        html { scroll-behavior: smooth; }
+        body { background: var(--bg-primary); color: var(--text-primary); font-family: var(--font-body); font-size: 17px; line-height: 1.7; overflow-x: hidden; }
+        .hero { min-height: 100vh; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 2rem 1.5rem; text-align: center; position: relative; }
+        .hero::before { content: ''; position: absolute; top: 0; left: 50%; transform: translateX(-50%); width: 700px; height: 600px; background: radial-gradient(circle, var(--accent-glow) 0%, transparent 70%); pointer-events: none; z-index: 0; }
+        .hero > * { position: relative; z-index: 1; }
+        .series-label { font-family: var(--font-mono); font-size: 0.85rem; color: var(--accent); letter-spacing: 0.15em; text-transform: uppercase; margin-bottom: 1rem; }
+        .hero h1 { font-family: var(--font-display); font-size: clamp(2rem, 5vw, 3.2rem); font-weight: 700; color: var(--text-primary); line-height: 1.2; margin-bottom: 1rem; }
+        .hero h1 .accent { color: var(--accent); }
+        .hero .subtitle { font-size: 1.1rem; color: var(--text-secondary); max-width: 640px; margin-bottom: 2rem; }
+        .tags { display: flex; flex-wrap: wrap; gap: 0.5rem; justify-content: center; margin-bottom: 2.5rem; }
+        .tag { font-family: var(--font-mono); font-size: 0.75rem; padding: 0.25rem 0.75rem; border-radius: 999px; border: 1px solid var(--accent); color: var(--accent); background: var(--accent-dim); white-space: nowrap; }
+        .pipeline { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 0.25rem; margin-bottom: 1rem; max-width: var(--max-width); }
+        .pipeline-step { font-family: var(--font-mono); font-size: 0.7rem; padding: 0.3rem 0.7rem; background: var(--bg-card); border: 1px solid var(--border); border-radius: 4px; color: var(--text-secondary); white-space: nowrap; }
+        .pipeline-arrow { color: var(--accent); font-size: 0.9rem; font-weight: 700; }
+        .slide { min-height: 100vh; max-width: var(--max-width); margin: 0 auto; padding: 4rem 1.5rem; position: relative; display: flex; flex-direction: column; justify-content: center; }
+        .slide-number { font-family: var(--font-display); font-size: 5rem; font-weight: 700; color: var(--accent-dim); position: absolute; top: 2rem; right: 1.5rem; line-height: 1; user-select: none; }
+        .slide h2 { font-family: var(--font-display); font-size: 1.9rem; font-weight: 700; color: var(--accent); margin-bottom: 1.5rem; line-height: 1.25; }
+        .slide h3 { font-family: var(--font-display); font-size: 1.3rem; font-weight: 600; color: var(--text-primary); margin-top: 1.5rem; margin-bottom: 0.75rem; }
+        .slide p { margin-bottom: 1rem; color: var(--text-secondary); }
+        .slide p strong { color: var(--text-primary); }
+        .slide ul, .slide ol { margin-bottom: 1rem; padding-left: 1.5rem; color: var(--text-secondary); }
+        .slide li { margin-bottom: 0.4rem; }
+        .slide li strong { color: var(--text-primary); }
+        .slide code { background: var(--bg-code); padding: 0.1rem 0.35rem; border-radius: 3px; font-family: var(--font-mono); font-size: 0.85em; color: var(--accent); }
+        .table-wrap { overflow-x: auto; margin: 1.25rem 0; border-radius: 8px; border: 1px solid var(--border); }
+        table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+        th { background: var(--bg-code); color: var(--accent); font-weight: 600; text-align: left; padding: 0.75rem 1rem; border-bottom: 1px solid var(--border); font-family: var(--font-display); white-space: nowrap; }
+        td { padding: 0.6rem 1rem; border-bottom: 1px solid var(--border); color: var(--text-secondary); vertical-align: top; }
+        tr:last-child td { border-bottom: none; }
+        tr:nth-child(even) td { background: rgba(13, 17, 23, 0.5); }
+        .diagram-grid { display: grid; gap: 0.75rem; margin: 1.5rem 0; padding: 1.5rem; background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; }
+        .diagram-grid.cols-2 { grid-template-columns: 1fr 1fr; }
+        .diagram-grid.cols-3 { grid-template-columns: 1fr 1fr 1fr; }
+        .diagram-panel { padding: 1rem; background: var(--bg-code); border: 1px solid var(--border); border-radius: 6px; }
+        .diagram-panel.accent-border { border-left: 3px solid var(--accent); }
+        .diagram-panel.r { border-left: 3px solid var(--accent-2); }
+        .diagram-panel.y { border-left: 3px solid var(--accent-3); }
+        .diagram-panel.g { border-left: 3px solid var(--accent-4); }
+        .diagram-panel h4 { font-family: var(--font-display); font-size: 1rem; color: var(--accent); margin-bottom: 0.5rem; }
+        .diagram-panel.r h4 { color: var(--accent-2); } .diagram-panel.y h4 { color: var(--accent-3); } .diagram-panel.g h4 { color: var(--accent-4); }
+        .diagram-panel p, .diagram-panel ul { font-size: 0.9rem; }
+        .callout { background: var(--bg-card); border-left: 3px solid var(--accent); border-radius: 0 8px 8px 0; padding: 1rem 1.25rem; margin: 1.25rem 0; }
+        .callout p { margin-bottom: 0; }
+        .callout .callout-label { font-family: var(--font-mono); font-size: 0.75rem; color: var(--accent); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 0.3rem; }
+        .canvas-wrap { background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; margin: 1.25rem 0; overflow-x: auto; }
+        .canvas-wrap canvas, .canvas-wrap svg { display: block; margin: 0 auto; max-width: 100%; }
+        .control-panel { background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem; margin: 1.25rem 0; }
+        .control-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem; margin-bottom: 0.75rem; }
+        .control-row label { font-family: var(--font-mono); font-size: 0.8rem; color: var(--text-secondary); min-width: 130px; }
+        .control-row input[type="range"] { flex: 1; min-width: 150px; accent-color: var(--accent); }
+        .control-row select, .control-row input[type="number"] { background: var(--bg-code); border: 1px solid var(--border); color: var(--text-primary); border-radius: 4px; padding: 0.3rem 0.5rem; font-family: var(--font-mono); font-size: 0.8rem; }
+        .control-row .val { font-family: var(--font-mono); font-size: 0.85rem; color: var(--accent); min-width: 80px; text-align: right; }
+        .btn { font-family: var(--font-mono); font-size: 0.8rem; padding: 0.4rem 0.9rem; background: var(--accent-dim); color: var(--accent); border: 1px solid var(--accent); border-radius: 4px; cursor: pointer; transition: background 0.15s ease; }
+        .btn:hover { background: rgba(167,139,250,0.25); }
+        .btn.secondary { background: var(--bg-code); color: var(--text-secondary); border-color: var(--border); }
+        .metric-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 0.5rem; margin-top: 0.75rem; }
+        .metric { background: var(--bg-code); border: 1px solid var(--border); border-radius: 6px; padding: 0.6rem 0.8rem; text-align: center; }
+        .metric .metric-label { font-family: var(--font-mono); font-size: 0.7rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.08em; }
+        .metric .metric-value { font-family: var(--font-display); font-size: 1.25rem; color: var(--accent); font-weight: 600; margin-top: 0.2rem; }
+        .contents-list { list-style: none; padding-left: 0; counter-reset: contents; }
+        .contents-list li { counter-increment: contents; padding: 0.6rem 0; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 1rem; }
+        .contents-list li:last-child { border-bottom: none; }
+        .contents-list li::before { content: counter(contents, decimal-leading-zero); font-family: var(--font-mono); font-size: 0.85rem; color: var(--accent); min-width: 2rem; }
+        .contents-list a { color: var(--text-primary); text-decoration: none; }
+        .contents-list a:hover { color: var(--accent); }
+        .footer { text-align: center; padding: 3rem 1.5rem; color: var(--text-secondary); font-size: 0.85rem; border-top: 1px solid var(--border); max-width: var(--max-width); margin: 0 auto; }
+        .footer a { color: var(--accent); text-decoration: none; }
+        .katex { color: var(--text-primary); } .katex-display { margin: 1rem 0; overflow-x: auto; overflow-y: hidden; }
+        @media (max-width: 640px) { .slide { padding: 3rem 1rem; min-height: auto; } .slide-number { font-size: 3rem; top: 1.5rem; right: 1rem; } .slide h2 { font-size: 1.5rem; } .diagram-grid.cols-2, .diagram-grid.cols-3 { grid-template-columns: 1fr; } .hero h1 { font-size: 1.8rem; } table { font-size: 0.78rem; } }
+    </style>
+</head>
+<body>
+
+<header class="hero">
+    <div class="series-label">Linear Algebra for AI &mdash; Presentation 03</div>
+    <h1>Matrix Multiplication <span class="accent">Deep-Dive</span></h1>
+    <p class="subtitle">Four equivalent ways to compute the same product, batched matmul, the GEMM that dominates LLM compute, and the arithmetic-intensity argument that explains every choice in modern AI hardware.</p>
+
+    <div class="tags">
+        <span class="tag">matmul</span><span class="tag">block</span>
+        <span class="tag">batched</span><span class="tag">GEMM</span>
+        <span class="tag">arithmetic intensity</span><span class="tag">FLOPs</span>
+    </div>
+
+    <div class="pipeline">
+        <span class="pipeline-step">inner products (i,j)</span>
+        <span class="pipeline-arrow">&rarr;</span>
+        <span class="pipeline-step">column-comb</span>
+        <span class="pipeline-arrow">&rarr;</span>
+        <span class="pipeline-step">row-comb</span>
+        <span class="pipeline-arrow">&rarr;</span>
+        <span class="pipeline-step">sum of outer products</span>
+        <span class="pipeline-arrow">&rarr;</span>
+        <span class="pipeline-step">block matmul</span>
+    </div>
+</header>
+
+<section class="slide" id="slide-00">
+    <div class="slide-number">00</div>
+    <h2>Topics We'll Cover</h2>
+    <ul class="contents-list">
+        <li><a href="#slide-01">The Definition</a></li>
+        <li><a href="#slide-02">View 1 &mdash; Inner Products</a></li>
+        <li><a href="#slide-03">View 2 &mdash; Linear Combinations of Columns</a></li>
+        <li><a href="#slide-04">View 3 &mdash; Linear Combinations of Rows</a></li>
+        <li><a href="#slide-05">View 4 &mdash; Sum of Outer Products</a></li>
+        <li><a href="#slide-06">Block Matmul</a></li>
+        <li><a href="#slide-07">Batched Matmul (BMM)</a></li>
+        <li><a href="#slide-08">Properties: Associativity, Distributivity, Transpose</a></li>
+        <li><a href="#slide-09">Interactive: Step Through a 4&times;4 Matmul</a></li>
+        <li><a href="#slide-10">Arithmetic Intensity &amp; Why GEMM Wins</a></li>
+        <li><a href="#slide-11">Cheat Sheet</a></li>
+    </ul>
+</section>
+
+<section class="slide" id="slide-01">
+    <div class="slide-number">01</div>
+    <h2>The Definition</h2>
+    <p>For $A \in \mathbb{R}^{m \times k}$ and $B \in \mathbb{R}^{k \times n}$, the product $C = AB \in \mathbb{R}^{m \times n}$ has entries</p>
+    <p>$$C_{ij} = \sum_{\ell=1}^{k} A_{i\ell}\, B_{\ell j}.$$</p>
+
+    <p>This is the textbook formula. Useful for proofs, useless as a mental model. The same operation has at least four equivalent geometric or structural interpretations &mdash; <em>which one you pick changes how you think about every layer in a transformer</em>.</p>
+
+    <h3>Why so many views?</h3>
+    <p>Each view bundles the same $mnk$ multiplications and $mn(k-1)$ additions into a different shape. The textbook formula computes one entry of $C$ at a time. Other views compute one column at a time, one row at a time, or assemble $C$ as a sum of $k$ rank-1 matrices. They are mathematically identical and computationally identical (same FLOP count); only the dependency structure differs &mdash; which matters for memory access, parallelism, and how you understand a transformer.</p>
+
+    <div class="callout">
+        <div class="callout-label">A non-trivial counting fact</div>
+        <p>Naive matmul costs $\Theta(mnk)$ multiply-adds. Strassen (1969) gave a divide-and-conquer recursion at $\Theta(n^{2.81})$ for $n\times n$. The current asymptotic record is around $\Theta(n^{2.371552})$ (Williams et al. 2024, refining work over decades). None of these are used in practice for ML &mdash; the cubic algorithm with cache-friendly tiling is faster on real hardware below $n \approx 1000$, and stays competitive much further. <em>Modern hardware is fast enough that algorithmic constants matter more than asymptotic exponents.</em></p>
+    </div>
+</section>
+
+<section class="slide" id="slide-02">
+    <div class="slide-number">02</div>
+    <h2>View 1 &mdash; Inner Products</h2>
+    <p>The textbook formula, in words: <strong>$C_{ij}$ is the dot product of row $i$ of $A$ with column $j$ of $B$.</strong></p>
+    <p>$$C_{ij} = \mathbf{a}_i^\top \mathbf{b}_j.$$</p>
+
+    <p>This is the row-times-column view. To compute one entry, you fly across one row and down one column, multiplying and summing.</p>
+
+    <h3>When this view is right</h3>
+    <ul>
+        <li><strong>Attention scores.</strong> $S = QK^\top$ is matmul; $S_{ij}$ is the dot product of query $i$ with key $j$. Reading "attention scores are dot products of queries with keys" is exactly View 1.</li>
+        <li><strong>Logits.</strong> The unembedding $W_U \mathbf{h}$ produces logits whose $i$-th entry is the dot product of the $i$-th unembedding row with the hidden state &mdash; "how much does this hidden state look like token $i$?".</li>
+        <li><strong>Output of an MLP layer.</strong> The $i$-th hidden activation is a row $\mathbf{w}_i^\top \mathbf{x}$ &mdash; how much $\mathbf{x}$ aligns with detector $i$.</li>
+    </ul>
+
+    <p>The cost: one inner product is $k$ multiply-adds; $mn$ entries gives $mnk$ MACs total.</p>
+</section>
+
+<section class="slide" id="slide-03">
+    <div class="slide-number">03</div>
+    <h2>View 2 &mdash; Linear Combinations of Columns</h2>
+    <p>Each <em>column</em> of $C$ is a linear combination of the columns of $A$, with weights given by a column of $B$:</p>
+    <p>$$C_{:,j} = A\, B_{:,j} = \sum_\ell B_{\ell j}\, A_{:,\ell}.$$</p>
+
+    <p>You can read $AB$ as "apply $A$ to each column of $B$, separately, and stack the results". This is the picture you get if you think of $B$ as a batch of inputs and $A$ as a layer.</p>
+
+    <h3>When this view is right</h3>
+    <ul>
+        <li><strong>Forward pass on a batch.</strong> Stack a batch of $n$ activation vectors into the columns of $X \in \mathbb{R}^{d_{in} \times n}$; the layer output is $WX \in \mathbb{R}^{d_{out} \times n}$, one output column per input. This is exactly the column view.</li>
+        <li><strong>Embedding lookup over a sequence.</strong> If $E \in \mathbb{R}^{d \times V}$ is the embedding matrix and $T \in \mathbb{R}^{V \times L}$ is a stack of one-hot token columns, then $ET$ has columns equal to the embeddings of the tokens.</li>
+    </ul>
+
+    <p>Mental model: <em>$A$ is the rule; $B$ is a list of inputs; $C$ is the list of outputs.</em></p>
+</section>
+
+<section class="slide" id="slide-04">
+    <div class="slide-number">04</div>
+    <h2>View 3 &mdash; Linear Combinations of Rows</h2>
+    <p>By transposition, each <em>row</em> of $C$ is a linear combination of the rows of $B$, with weights from a row of $A$:</p>
+    <p>$$C_{i,:} = A_{i,:} \, B = \sum_\ell A_{i\ell}\, B_{\ell,:}.$$</p>
+
+    <h3>When this view is right</h3>
+    <ul>
+        <li><strong>The output of attention.</strong> $\mathrm{Attn}\,V = \mathrm{softmax}(QK^\top/\sqrt{d})\,V$. Each row of the output is a convex combination of the rows of $V$ &mdash; literally a weighted average of value vectors. View 3 is what makes "attention reads from a memory" a precise statement, not a metaphor. (Deck 10 develops this.)</li>
+        <li><strong>Activations after a linear layer applied row-wise.</strong> If $X \in \mathbb{R}^{n \times d_{in}}$ is a batch with rows = tokens and $W \in \mathbb{R}^{d_{in} \times d_{out}}$ is the layer (PyTorch convention), then $XW$ has rows = transformed tokens.</li>
+    </ul>
+
+    <p>Views 2 and 3 are the same operation written from different sides of the equation. Knowing both makes you fluent in shape juggling.</p>
+</section>
+
+<section class="slide" id="slide-05">
+    <div class="slide-number">05</div>
+    <h2>View 4 &mdash; Sum of Outer Products</h2>
+    <p>The most useful view for theory:</p>
+    <p>$$AB = \sum_{\ell=1}^{k} A_{:,\ell}\, B_{\ell,:}.$$</p>
+    <p>$AB$ is a sum of $k$ rank-1 matrices, one per "contracted" dimension &mdash; each is the outer product of a column of $A$ with a row of $B$.</p>
+
+    <h3>Why this view is the most theoretically powerful</h3>
+    <ul>
+        <li><strong>Rank bound.</strong> A sum of $k$ rank-1 matrices has rank at most $k$. Hence $\mathrm{rank}(AB) \le \min(\mathrm{rank}\,A, \mathrm{rank}\,B)$. Trivial in this view.</li>
+        <li><strong>SVD reconstruction.</strong> The SVD writes $A = \sum_i \sigma_i \mathbf{u}_i \mathbf{v}_i^\top$ &mdash; a sum of rank-1 outer products with decreasing weights. Truncated SVD, the foundation of low-rank approximation (deck 07), is exactly "keep the largest few of these". Eckart-Young says this is the best rank-$k$ approximation under the Frobenius norm.</li>
+        <li><strong>LoRA.</strong> The LoRA update $\Delta W = BA$ with $A \in \mathbb{R}^{r \times d}$ and $B \in \mathbb{R}^{d \times r}$ is a sum of $r$ outer products. Tiny $r$ &mdash; typically 8 or 16 &mdash; gives a parameter count proportional to $r d$ instead of $d^2$. Deck 07.</li>
+        <li><strong>Attention output.</strong> The attention output $A V$ where $A$ is the softmaxed score matrix is, in View 4, a sum over keys of $A_{:,\ell}\, V_{\ell,:}$ &mdash; a sum of rank-1 contributions, one per key. Each token contributes one outer product.</li>
+    </ul>
+
+    <div class="callout">
+        <div class="callout-label">The four views, side by side</div>
+        <p>
+        <strong>(1)</strong> $C_{ij}$ = dot of row of $A$ with col of $B$. <em>One entry at a time.</em><br>
+        <strong>(2)</strong> $C_{:,j}$ = $A$ times col of $B$. <em>One column at a time.</em><br>
+        <strong>(3)</strong> $C_{i,:}$ = row of $A$ times $B$. <em>One row at a time.</em><br>
+        <strong>(4)</strong> $C$ = $\sum$ of $k$ outer products. <em>One contraction step at a time.</em>
+        </p>
+    </div>
+</section>
+
+<section class="slide" id="slide-06">
+    <div class="slide-number">06</div>
+    <h2>Block Matmul</h2>
+    <p>If you partition $A$ and $B$ into blocks, matmul respects that partition exactly &mdash; <em>provided</em> the inner block sizes match. Schematically:</p>
+
+    <p>$$\begin{pmatrix} A_{11} &amp; A_{12} \\ A_{21} &amp; A_{22} \end{pmatrix} \begin{pmatrix} B_{11} &amp; B_{12} \\ B_{21} &amp; B_{22} \end{pmatrix} = \begin{pmatrix} A_{11}B_{11} + A_{12}B_{21} &amp; A_{11}B_{12} + A_{12}B_{22} \\ A_{21}B_{11} + A_{22}B_{21} &amp; A_{21}B_{12} + A_{22}B_{22} \end{pmatrix}.$$</p>
+
+    <p>The block formula is the recursive structure that turns matmul into a cache-friendly algorithm. You don't compute one entry at a time; you compute one tile at a time, where a tile fits in fast memory (registers, L1, shared memory, VMEM, &hellip;).</p>
+
+    <h3>Why this is the core trick of every fast matmul implementation</h3>
+    <ul>
+        <li><strong>BLAS GEMM:</strong> Goto-style tiling at three levels &mdash; outer (RAM), middle (L2), inner (L1+registers). Blocks are sized to match cache geometry.</li>
+        <li><strong>cuBLAS / CUTLASS:</strong> Tiles are CTAs (thread blocks). Each CTA loads tiles of $A$ and $B$ into shared memory, computes a tile of $C$ in registers / tensor cores.</li>
+        <li><strong>TPU MXU:</strong> Each matmul step is a 128&times;128 tile. The systolic array <em>is</em> the inner block. XLA chooses outer tile sizes to match VMEM capacity.</li>
+        <li><strong>FlashAttention:</strong> Recomputes attention in tiles of size that fit on-chip, avoiding materialising the full $L \times L$ score matrix in HBM. A pure block-matmul restructuring of the same arithmetic.</li>
+    </ul>
+</section>
+
+<section class="slide" id="slide-07">
+    <div class="slide-number">07</div>
+    <h2>Batched Matmul (BMM)</h2>
+    <p>Almost every matmul in an LLM is <em>batched</em>: a stack of matrices that we matmul element-wise. In NumPy / PyTorch / JAX:</p>
+
+    <p>$$C[b, i, j] = \sum_\ell A[b, i, \ell]\, B[b, \ell, j]$$</p>
+
+    <p>i.e. a separate $m \times n$ matmul per batch index $b$. The batch dimension is "trivial" &mdash; the matmuls are independent &mdash; but it dominates how you actually schedule the FLOPs across an accelerator.</p>
+
+    <h3>Where BMM lives in a transformer</h3>
+    <ul>
+        <li><strong>Multi-head attention scores.</strong> $Q \in \mathbb{R}^{B \times H \times L \times d_h}$, $K \in \mathbb{R}^{B \times H \times L \times d_h}$. The score $QK^\top$ is a 4-way batched matmul over $(B, H)$ producing shape $(B, H, L, L)$. PyTorch: <code>torch.einsum("bhld,bhmd->bhlm", Q, K)</code>.</li>
+        <li><strong>Multi-head attention output.</strong> $\mathrm{softmax}(S) V$, also a $(B,H)$-batched matmul.</li>
+        <li><strong>The MLP up- and down-projections.</strong> Often broadcast over batch and sequence: a single $(d_{out} \times d_{in})$ weight applied to a $(B \times L)$ batch of inputs &mdash; in einsum, <code>"oi,bli->blo"</code>.</li>
+    </ul>
+
+    <div class="callout">
+        <div class="callout-label">Why einsum is the right notation</div>
+        <p>Once you have batches, heads, sequence, head-dim and feature dimension you have <em>five</em> indices to keep track of. Writing BMMs in einsum is the only sustainable way: name every index, sum over the contracted ones, leave the rest. Deck 12 develops einsum and tensor algebra properly.</p>
+    </div>
+</section>
+
+<section class="slide" id="slide-08">
+    <div class="slide-number">08</div>
+    <h2>Properties: Associativity, Distributivity, Transpose</h2>
+    <div class="diagram-grid cols-2">
+        <div class="diagram-panel accent-border">
+            <h4>Associativity</h4>
+            <p>$(AB)C = A(BC)$. Always true. <em>But the cost can differ wildly.</em></p>
+            <p>$A \in \mathbb{R}^{m \times k}$, $B \in \mathbb{R}^{k \times n}$, $C \in \mathbb{R}^{n \times p}$. Cost of $(AB)C$ is $mkn + mnp$; of $A(BC)$ is $knp + mkp$. For $m = p = 1$, $k = n = 1000$: $(AB)C$ costs ~2 million ops; $A(BC)$ costs ~1 million + 1000 = ~1 million ops.</p>
+        </div>
+        <div class="diagram-panel y">
+            <h4>Distributivity</h4>
+            <p>$A(B + C) = AB + AC$ and $(A + B)C = AC + BC$. Both always true. Underlies: residual streams (a sum of contributions) read out by a single matrix; ensemble averages; gradient accumulation.</p>
+        </div>
+        <div class="diagram-panel g">
+            <h4>Transpose</h4>
+            <p>$(AB)^\top = B^\top A^\top$. Order reverses. <strong>This is the engine of backprop.</strong> If forward is $\mathbf{y} = W\mathbf{x}$, the backward (vector-Jacobian product) is $\nabla_{\mathbf{x}} = W^\top \nabla_\mathbf{y}$. Deck 09.</p>
+        </div>
+        <div class="diagram-panel r">
+            <h4>Non-commutativity</h4>
+            <p>In general $AB \neq BA$. They might not even have the same shape. Two cases where they commute: (a) both are diagonal, (b) both are powers of the same matrix. Otherwise treat $AB \neq BA$ as the rule.</p>
+        </div>
+    </div>
+
+    <div class="callout">
+        <div class="callout-label">Associativity matters for transformers</div>
+        <p>Computing $(QK^\top)V$ is $\Theta(L^2 d + L^2 d) = \Theta(L^2 d)$. Computing $Q(K^\top V)$ is $\Theta(d^2 L + L d^2) = \Theta(L d^2)$. For long sequences ($L \gg d$) the second is much faster &mdash; this is the <em>linear attention</em> trick, which holds when softmax is replaced by a kernel feature map (Performer, Linear Transformer, RWKV-Linear). Standard softmax attention forbids the swap because the softmax is non-linear.</p>
+    </div>
+</section>
+
+<section class="slide" id="slide-09">
+    <div class="slide-number">09</div>
+    <h2>Interactive: Step Through a 4&times;4 Matmul</h2>
+    <p>The widget computes $C = AB$ for $A, B \in \mathbb{R}^{4 \times 4}$, animating one of the four views. Pick a view and step through. Highlighted cells are what's being read; the green cell is what's being written.</p>
+
+    <div class="control-panel">
+        <div class="control-row">
+            <label>Mode</label>
+            <select id="mm-mode">
+                <option value="inner">View 1 — inner products (one entry)</option>
+                <option value="col">View 2 — column at a time</option>
+                <option value="row">View 3 — row at a time</option>
+                <option value="outer">View 4 — outer-product sum</option>
+            </select>
+        </div>
+        <div class="control-row">
+            <button class="btn" id="mm-step">Step</button>
+            <button class="btn" id="mm-run">Run</button>
+            <button class="btn secondary" id="mm-reset">Reset</button>
+            <button class="btn secondary" id="mm-rand">Randomise A, B</button>
+            <span class="val" id="mm-status">step 0</span>
+        </div>
+    </div>
+
+    <div class="canvas-wrap">
+        <svg id="mm-svg" viewBox="0 0 720 320" width="720" height="320" xmlns="http://www.w3.org/2000/svg">
+            <rect width="720" height="320" fill="#0d1117"/>
+            <text x="60" y="30" fill="#a78bfa" font-family="Space Grotesk" font-size="16" font-weight="600">A (4×4)</text>
+            <text x="280" y="30" fill="#a78bfa" font-family="Space Grotesk" font-size="16" font-weight="600">B (4×4)</text>
+            <text x="500" y="30" fill="#a78bfa" font-family="Space Grotesk" font-size="16" font-weight="600">C = AB</text>
+            <g id="mm-A"></g>
+            <g id="mm-B"></g>
+            <g id="mm-C"></g>
+        </svg>
+    </div>
+
+    <p id="mm-explain" style="font-size: 0.95rem;">Pick a view from the dropdown and step through. The widget shows what the algorithm is reading (highlighted) and writing (green) at each step.</p>
+
+    <script>
+    (function(){
+        function rand4() {
+            var M = [];
+            for (var i = 0; i < 4; i++) { M.push([]); for (var j = 0; j < 4; j++) M[i].push(Math.floor(Math.random()*9 - 4)); }
+            return M;
+        }
+        var A = [[1,2,0,1],[0,1,1,0],[2,0,1,1],[1,1,0,2]];
+        var B = [[0,1,1,0],[1,0,1,1],[1,1,0,0],[0,1,1,1]];
+        function mul(A,B) {
+            var C = [];
+            for (var i = 0; i < 4; i++) { C.push([0,0,0,0]); for (var j = 0; j < 4; j++) for (var l = 0; l < 4; l++) C[i][j] += A[i][l]*B[l][j]; }
+            return C;
+        }
+        var C, partialC;
+        var step = 0, mode = 'inner', running = false, timer = null;
+
+        function render() {
+            var sz = 38, gap = 4;
+            function draw(elId, M, ox, oy, hi) {
+                var svgGroup = document.getElementById(elId);
+                var s = '';
+                for (var i = 0; i < 4; i++) for (var j = 0; j < 4; j++) {
+                    var x = ox + j*(sz+gap), y = oy + i*(sz+gap);
+                    var key = i+','+j;
+                    var fill = '#161b22'; var stroke = '#21262d';
+                    if (hi && hi[key]) { if (hi[key] === 'read') { fill = 'rgba(167,139,250,0.30)'; stroke = '#a78bfa'; } else if (hi[key] === 'write') { fill = 'rgba(52,211,153,0.30)'; stroke = '#34d399'; } else if (hi[key] === 'done') { fill = 'rgba(52,211,153,0.10)'; } }
+                    s += '<rect x="'+x+'" y="'+y+'" width="'+sz+'" height="'+sz+'" rx="4" fill="'+fill+'" stroke="'+stroke+'" stroke-width="1"/>';
+                    s += '<text x="'+(x+sz/2)+'" y="'+(y+sz/2+5)+'" fill="#e6edf3" font-family="JetBrains Mono" font-size="13" text-anchor="middle">'+M[i][j]+'</text>';
+                }
+                svgGroup.innerHTML = s;
+            }
+            // Compute highlights based on mode and step
+            var hiA = {}, hiB = {}, hiC = {};
+            var doneC = {};
+            for (var p = 0; p < 16; p++) {
+                if (partialC.computed[p]) doneC[p] = true;
+            }
+            // mark already-computed C entries faintly
+            for (var i = 0; i < 4; i++) for (var j = 0; j < 4; j++) {
+                if (partialC.flag[i] && partialC.flag[i][j]) hiC[i+','+j] = 'done';
+            }
+            if (mode === 'inner') {
+                var i = Math.floor(step/4), j = step%4;
+                if (i < 4) {
+                    for (var l = 0; l < 4; l++) hiA[i+','+l] = 'read';
+                    for (var l = 0; l < 4; l++) hiB[l+','+j] = 'read';
+                    hiC[i+','+j] = 'write';
+                }
+            } else if (mode === 'col') {
+                var j = step;
+                if (j < 4) {
+                    for (var ii = 0; ii < 4; ii++) for (var ll = 0; ll < 4; ll++) hiA[ii+','+ll] = 'read';
+                    for (var ll = 0; ll < 4; ll++) hiB[ll+','+j] = 'read';
+                    for (var ii = 0; ii < 4; ii++) hiC[ii+','+j] = 'write';
+                }
+            } else if (mode === 'row') {
+                var i = step;
+                if (i < 4) {
+                    for (var ll = 0; ll < 4; ll++) hiA[i+','+ll] = 'read';
+                    for (var ll = 0; ll < 4; ll++) for (var jj = 0; jj < 4; jj++) hiB[ll+','+jj] = 'read';
+                    for (var jj = 0; jj < 4; jj++) hiC[i+','+jj] = 'write';
+                }
+            } else if (mode === 'outer') {
+                var l = step;
+                if (l < 4) {
+                    for (var ii = 0; ii < 4; ii++) hiA[ii+','+l] = 'read';
+                    for (var jj = 0; jj < 4; jj++) hiB[l+','+jj] = 'read';
+                    for (var ii = 0; ii < 4; ii++) for (var jj = 0; jj < 4; jj++) hiC[ii+','+jj] = 'write';
+                }
+            }
+            draw('mm-A', A, 50, 50, hiA);
+            draw('mm-B', B, 270, 50, hiB);
+            draw('mm-C', partialC.M, 490, 50, hiC);
+            var explanations = {
+                inner: 'View 1: each step computes one entry of C as the dot product of one row of A and one column of B.',
+                col:   'View 2: each step computes one column of C as A times one column of B.',
+                row:   'View 3: each step computes one row of C as one row of A times B.',
+                outer: 'View 4: each step adds an outer product (column of A) × (row of B) to C. After all 4 steps, every C entry is final.'
+            };
+            document.getElementById('mm-explain').textContent = explanations[mode];
+            document.getElementById('mm-status').textContent = 'step ' + step;
+        }
+
+        function reset() {
+            C = mul(A, B);
+            partialC = { M: [[0,0,0,0],[0,0,0,0],[0,0,0,0],[0,0,0,0]], flag: [[0,0,0,0],[0,0,0,0],[0,0,0,0],[0,0,0,0]], computed: {} };
+            step = 0;
+            running = false;
+            if (timer) clearInterval(timer);
+            document.getElementById('mm-run').textContent = 'Run';
+            render();
+        }
+        function step1() {
+            if (mode === 'inner') {
+                if (step >= 16) { running = false; clearInterval(timer); document.getElementById('mm-run').textContent='Run'; return; }
+                var i = Math.floor(step/4), j = step%4;
+                partialC.M[i][j] = C[i][j]; partialC.flag[i][j] = 1; partialC.computed[i*4+j] = 1;
+                step++;
+            } else if (mode === 'col') {
+                if (step >= 4) { running = false; clearInterval(timer); document.getElementById('mm-run').textContent='Run'; return; }
+                for (var i = 0; i < 4; i++) { partialC.M[i][step] = C[i][step]; partialC.flag[i][step] = 1; }
+                step++;
+            } else if (mode === 'row') {
+                if (step >= 4) { running = false; clearInterval(timer); document.getElementById('mm-run').textContent='Run'; return; }
+                for (var j = 0; j < 4; j++) { partialC.M[step][j] = C[step][j]; partialC.flag[step][j] = 1; }
+                step++;
+            } else if (mode === 'outer') {
+                if (step >= 4) { running = false; clearInterval(timer); document.getElementById('mm-run').textContent='Run'; return; }
+                for (var i = 0; i < 4; i++) for (var j = 0; j < 4; j++) {
+                    partialC.M[i][j] += A[i][step] * B[step][j];
+                    if (step === 3) partialC.flag[i][j] = 1;
+                }
+                step++;
+            }
+            render();
+        }
+        document.getElementById('mm-step').addEventListener('click', step1);
+        document.getElementById('mm-run').addEventListener('click', function(){
+            if (running) { running = false; clearInterval(timer); this.textContent = 'Run'; }
+            else { running = true; this.textContent = 'Pause'; timer = setInterval(step1, 450); }
+        });
+        document.getElementById('mm-reset').addEventListener('click', reset);
+        document.getElementById('mm-rand').addEventListener('click', function(){ A = rand4(); B = rand4(); reset(); });
+        document.getElementById('mm-mode').addEventListener('change', function(){ mode = this.value; reset(); });
+        reset();
+    })();
+    </script>
+</section>
+
+<section class="slide" id="slide-10">
+    <div class="slide-number">10</div>
+    <h2>Arithmetic Intensity &amp; Why GEMM Wins</h2>
+    <p>Let's count for an $n \times n$ matmul:</p>
+    <ul>
+        <li><strong>Compute:</strong> $2n^3$ FLOPs (each of the $n^3$ output contributions is one multiply + one add).</li>
+        <li><strong>Memory traffic, naive:</strong> $3n^2$ floats &mdash; load $A$, load $B$, write $C$.</li>
+        <li><strong>Arithmetic intensity</strong> &equiv; FLOPs / byte. With float32, $2n^3 / (3n^2 \cdot 4) = n/6$ FLOP/byte.</li>
+    </ul>
+
+    <p>For $n = 1024$ that's ~170 FLOPs per byte loaded. By contrast a vector add ($\mathbf{y} = \mathbf{x} + \mathbf{z}$) does <em>one</em> FLOP per ~12 bytes &mdash; intensity 0.08, hopelessly memory-bound. Matmul is the rare workload where compute can keep up with memory bandwidth, <em>provided you re-use loaded operands instead of streaming through them once</em>.</p>
+
+    <h3>The roofline argument, briefly</h3>
+    <p>An accelerator has peak compute $C^*$ FLOPs/sec and peak memory bandwidth $B^*$ bytes/sec. Above arithmetic intensity $C^* / B^*$ (the "ridge point"), you're compute-bound; below, memory-bound. For an H100: ~990 TFLOPS at FP16 and ~3.35 TB/s HBM &rarr; ridge ~300 FLOP/byte. A FP16 matmul with $n \ge 1800$ is comfortably compute-bound; a transformer layer-norm or activation function isn't. <strong>This is why everything in modern AI hardware is shaped to maximise matmul time and minimise everything else.</strong></p>
+
+    <div class="callout">
+        <div class="callout-label">The 4 lines that explain the AI hardware industry</div>
+        <p>(1) Matmul has favourable arithmetic intensity. (2) Matmul gets even better when you tile and re-use sub-tiles. (3) An accelerator that maximises tiled-matmul throughput per Watt wins. (4) The TPU and the GPU's tensor cores are both optimisations of (3).</p>
+    </div>
+</section>
+
+<section class="slide" id="slide-11">
+    <div class="slide-number">11</div>
+    <h2>Cheat Sheet</h2>
+    <ul>
+        <li>Matmul has <strong>four equivalent views</strong>: entry = inner product (1); $C$ has columns = $A \cdot$col-of-$B$ (2); $C$ has rows = row-of-$A \cdot B$ (3); $C$ = sum of $k$ outer products (4). Same FLOPs, different mental models.</li>
+        <li><strong>Block matmul</strong> respects partitions: $C_{IJ} = \sum_K A_{IK} B_{KJ}$. The recursive structure that powers cache-friendly tiling, GPU shared-memory loading, TPU MXU operation, FlashAttention.</li>
+        <li><strong>Batched matmul</strong> (BMM) is element-wise matmul over an outer batch dimension. Almost every matmul in a transformer is batched over $(B, H, \ldots)$.</li>
+        <li>$(AB)^\top = B^\top A^\top$. Order reverses. This is the rule that makes backprop work.</li>
+        <li>Matmul is associative but the <strong>parenthesisation matters for cost</strong>. For long sequences and small head-dim, $Q(K^\top V)$ is asymptotically faster than $(QK^\top)V$ &mdash; the foundation of linear attention.</li>
+        <li><strong>Arithmetic intensity</strong> of an $n\times n$ matmul scales linearly with $n$. This is why matmul, alone among basic numerical kernels, can saturate modern accelerator FLOPs.</li>
+        <li>Strassen-style sub-cubic algorithms exist but aren't used in practice: their constants are too high and modern hardware too good at the cubic algorithm with tiling.</li>
+    </ul>
+
+    <div class="callout">
+        <div class="callout-label">Read next</div>
+        <p>Deck <strong>04 &mdash; Inner Products, Norms &amp; Geometry</strong> takes the row-times-column dot-product picture from View 1 and develops it into a full geometric language: angles, lengths, orthogonality, the geometry behind cosine similarity and attention scores.</p>
+    </div>
+</section>
+
+<footer class="footer">
+    <p>Part of the <a href="https://github.com/BrendanJamesLynskey/LLM_Hub_Linear_Algebra">Linear Algebra for AI / ML</a> series. Sources: Strang, <em>Linear Algebra and Its Applications</em>; Goto &amp; van de Geijn, "Anatomy of high-performance matrix multiplication", ACM TOMS 2008; Williams, Patterson, Asanovic, "Roofline" CACM 2009; Williams, Xu, Xu &amp; Zhou, "New Bounds for Matrix Multiplication" 2024 (asymptotic record).</p>
+</footer>
+
+</body>
+</html>
